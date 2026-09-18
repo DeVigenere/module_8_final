@@ -14,12 +14,12 @@ using json = nlohmann::json;
 
 const int PORT = 8080;
 
-std::string buildMessage(const std::string& source, const std::string& status,const std::string& payload) {
+std::string buildMessage(const std::string& source,
+    const std::string& status,
+    const nlohmann::json& payload) {
     auto now = std::chrono::system_clock::now();
     auto now_c = std::chrono::system_clock::to_time_t(now);
-    auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-        now.time_since_epoch()) % 1000;
-
+    auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
     std::tm tm_buf;
 #ifdef _WIN32
     gmtime_s(&tm_buf, &now_c);
@@ -34,6 +34,7 @@ std::string buildMessage(const std::string& source, const std::string& status,co
     messageJson["timestamp_utc"] = ss.str();
     messageJson["payload"] = payload;
     messageJson["status"] = status;
+    messageJson["schema_version"] = 1;
     return messageJson.dump() + "\n";
 }
 
@@ -80,25 +81,20 @@ int main() {
     int sent_count = 0;
     int total_ops = sizeof(ops) / sizeof(ops[0]);
     for (const auto& op : ops) {
-        std::string result;
         try {
+            nlohmann::json payloadJson;
+            payloadJson["a"] = op.a;
+            payloadJson["b"] = op.b;
+            payloadJson["operation"] = std::string(1, op.op);
+
             switch (op.op) {
-            case '+':
-                result = std::to_string(calc.Add(op.a, op.b));
-                break;
-            case '-':
-                result = std::to_string(calc.Subtract(op.a, op.b));
-                break;
-            case '*':
-                result = std::to_string(calc.Multiply(op.a, op.b));
-                break;
-            case '/':
-                result = std::to_string(calc.Divide(op.a, op.b));
-                break;
+            case '+': payloadJson["result"] = calc.Add(op.a, op.b); break;
+            case '-': payloadJson["result"] = calc.Subtract(op.a, op.b); break;
+            case '*': payloadJson["result"] = calc.Multiply(op.a, op.b); break;
+            case '/': payloadJson["result"] = calc.Divide(op.a, op.b); break;
             }
-            std::string payload = std::to_string(op.a) + " " + op.op + " " +
-                std::to_string(op.b) + " = " + result;
-            std::string message = buildMessage("calculator", "success", payload);
+
+            std::string message = buildMessage("calculator", "success", payloadJson);
             std::cout << "\nSending: " << message;
             if (sendMessage(message)) {
                 sent_count++;
@@ -109,9 +105,12 @@ int main() {
         }
         catch (const std::exception& e) {
             std::cerr << "Calculation error: " << e.what() << std::endl;
-            std::string payload = std::to_string(op.a) + " " + op.op + " " +
-                std::to_string(op.b) + " error: " + e.what();
-            std::string message = buildMessage("calculator", "error", payload);
+            nlohmann::json payloadJson;
+            payloadJson["a"] = op.a;
+            payloadJson["b"] = op.b;
+            payloadJson["operation"] = std::string(1, op.op);
+            payloadJson["error"] = e.what();
+            std::string message = buildMessage("calculator", "error", payloadJson);
             std::cout << "\nSending error: " << message;
             if (sendMessage(message)) {
                 sent_count++;

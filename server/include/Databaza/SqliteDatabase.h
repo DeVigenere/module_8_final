@@ -1,26 +1,35 @@
 #pragma once
 #include "IDatabase.h"
+#include "Logger.h"
 #include <sqlite3.h>
 #include <mutex>
 #include <string>
+#include <memory>
 
 class SqliteDatabase : public IDatabase {
-private:
     sqlite3* db_ = nullptr;
-    std::mutex mutex_;
+    mutable std::mutex mutex_;
     std::string dbPath_;
-
+    Logger& log_;
 public:
-    explicit SqliteDatabase(const std::string& path = "db/messages.db");
+    SqliteDatabase(const std::string& path, Logger& log);
     ~SqliteDatabase() override;
-
     bool init() override;
-    virtual bool saveMessage(const std::string& source,
+    bool saveMessage(const std::string& source,
         const std::string& timestamp,
         const std::string& status,
         const std::string& payload,
+        int schema_version,
         long long& msgId) override;
-    void showStats() override;
+    Stats getStats() const override;
     void close() override;
-    std::vector<EventRecord> getEvents(const EventFilter& filter) override;
+    bool markProcessed(long long msgId) override;
+    std::vector<EventRecord> getEvents(const EventFilter& filter) const override;
 };
+
+struct StmtDeleter {
+    void operator()(sqlite3_stmt* stmt) const noexcept {
+        if (stmt) sqlite3_finalize(stmt);
+    }
+};
+using SqliteStmtPtr = std::unique_ptr<sqlite3_stmt, StmtDeleter>;

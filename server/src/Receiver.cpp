@@ -1,27 +1,25 @@
-#include "Globals.h"
-#include "Message.h"
+#include "MessageHandler.h"
+#include "ControlService.h"
+#include "ConsoleLogger.h"
+#include "Databaza/SqliteDatabase.h"
 #include "Network/NetworkFactory.h"
 #include "Network/IConnection.h"
 #include "Network/INetworkFactory.h"
 #include "Network/IListener.h"
-#include <nlohmann/json.hpp>
+#include "StatsCommand.h"
+#include "GetEventsCommand.h"
 #include <atomic>
 #include <thread>
-#include <iostream>
 #include <memory>
-
-using json = nlohmann::json;
 
 const int PORT = 8080;
 const int BUFFER = 1024;
 std::atomic<bool> running{ true };
 
-void handleClient(std::unique_ptr<IConnection> client) {
+void handleClient(std::unique_ptr<IConnection> client, MessageHandler& handler) {
     if (!client) {
-        std::cerr << "Invalid client connection" << std::endl;
         return;
     }
-    std::cout << "New connection accepted" << std::endl;
     std::string received;
     while (running && client->isOpen()) {
         std::string chunk;
@@ -38,47 +36,36 @@ void handleClient(std::unique_ptr<IConnection> client) {
             std::string message = received.substr(0, pos);
             received.erase(0, pos + 1);
             if (!message.empty()) {
-                printMessage(message);
-                std::string response;
-                try {
-                    nlohmann::json j = nlohmann::json::parse(message);
-                    if (j.value("source_service", "") == "control") {
-                        response = handleControlCommand(j) + "\n";
-                    }
-                    else {
-                        response = "OK\n";
-                    }
-                }
-                catch (...) {
-                    response = "OK\n";
-                }
+                std::string response = handler.handle(message);
                 client->sendAll(response);
             }
         }
     }
     client->close();
-    std::cout << "Client disconnected" << std::endl;
 }
 
 int main() {
-    auto factory = makeNetworkFactory();
-    if (!factory || !factory->init()) {
-        std::cerr << "Failed to init network" << std::endl;
+    ConsoleLogger log;
+    SqliteDatabase db("db/messages.db", log);
+    if (!db.init()) {
         return 1;
     }
-    if (!g_db->init()) {
-        std::cerr << "Error init database" << std::endl;
-        factory->cleanup();
+    ControlService control(log);
+    MessageHandler handler(db, control, log);
+    control.registerCommand(std::make_unique<StatsCommand>(db, log));
+    control.registerCommand(std::make_unique<GetEventsCommand>(db, log));
+    auto factory = makeNetworkFactory();
+    if (!factory || !factory->init()) {
+        log.error("Failed to init network");
         return 1;
     }
     auto listener = factory->listen(PORT);
     if (!listener) {
-        g_db->close();
+        log.error("Failed to listen on port " + std::to_string(PORT));
         factory->cleanup();
         return 1;
     }
-    std::cout << "Service on port " << PORT << std::endl;
-    std::cout << "To get stats, send message with source_service='control' and payload='stats'" << std::endl;
+    log.info("Service on port " + std::to_string(PORT));
     while (running) {
         auto client = listener->accept();
         if (!client) {
@@ -87,13 +74,12 @@ int main() {
             }
             continue;
         }
-        std::thread([client = std::move(client)]() mutable {
-            handleClient(std::move(client));
+        std::thread([client = std::move(client), &handler]() mutable {
+            handleClient(std::move(client), handler);
             }).detach();
     }
     listener->close();
-    g_db->close();
     factory->cleanup();
-    std::cout << "Service stop" << std::endl;
+    log.info("Service stop");
     return 0;
 }

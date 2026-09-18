@@ -57,6 +57,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
 
 find_package(SQLite3 REQUIRED)
 find_package(nlohmann_json REQUIRED)
+find_package(GTest CONFIG REQUIRED)
 
 set(COMMON_DIR "${CMAKE_SOURCE_DIR}/common")
 
@@ -86,5 +87,6 @@ target_include_directories(net_common PUBLIC
     ${COMMON_DIR}/include/Network
 )
 
+enable_testing()
 add_subdirectory(client)
 add_subdirectory(server)

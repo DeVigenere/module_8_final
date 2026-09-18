@@ -2,6 +2,7 @@
 #include <string>
 #include <optional>
 #include <vector>
+#include <unordered_map>
 
 struct EventFilter {
     std::optional<std::string> from;
@@ -22,18 +23,26 @@ struct EventRecord {
     bool processed;
 };
 
+struct Stats {
+    int total = 0;
+    int success = 0;
+    int error = 0;
+    std::unordered_map<std::string, int> by_source;
+};
+
 
 class IDatabase {
 public:
     virtual ~IDatabase() = default;
-
     virtual bool init() = 0;
     virtual bool saveMessage(const std::string& source,
         const std::string& timestamp,
         const std::string& status,
         const std::string& payload,
+        int schema_version,
         long long& msgId) = 0;
-    virtual void showStats() = 0;
     virtual void close() = 0;
-    virtual std::vector<EventRecord> getEvents(const EventFilter& filter) = 0;
+    virtual Stats getStats() const = 0;
+    virtual bool markProcessed(long long msgId) = 0;
+    virtual std::vector<EventRecord> getEvents(const EventFilter& filter) const = 0;
 };
