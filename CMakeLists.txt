@@ -6,7 +6,7 @@ set(VCPKG_EXECUTABLE "${VCPKG_ROOT}/vcpkg")
 if(WIN32)
     set(VCPKG_CMD "${VCPKG_EXECUTABLE}.exe")
 else()
-    set(VCPKG_CMD "${VCPKG_EXECUTABLE}")6
+    set(VCPKG_CMD "${VCPKG_EXECUTABLE}")
 endif()
 
 if(NOT EXISTS "${VCPKG_ROOT}")
