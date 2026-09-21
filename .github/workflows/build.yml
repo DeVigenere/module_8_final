@@ -35,6 +35,9 @@ jobs:
     - name: Build
       run: cmake --build build --parallel $(nproc)
 
+    - name: Run tests
+      run: ctest --test-dir build --output-on-failure
+
     - name: Verify
       run: |
         ls -la bin/
@@ -60,6 +63,9 @@ jobs:
 
     - name: Build
       run: cmake --build build --config Release --parallel
+
+    - name: Run tests
+      run: ctest --test-dir build -C Release --output-on-failure
 
     - name: Verify
       run: |
