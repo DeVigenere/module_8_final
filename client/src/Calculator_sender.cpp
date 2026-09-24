@@ -76,7 +76,8 @@ int main() {
         {20, 4, '-'},
         {7, 3, '*'},
         {15, 3, '/'},
-        {8, 0, '/'}
+        {8, 0, '/'},
+        {9, 5, '+'},
     };
     int sent_count = 0;
     int total_ops = sizeof(ops) / sizeof(ops[0]);
